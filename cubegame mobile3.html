@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D Cube Game</title>
+    <style>
+        body { margin: 0; overflow: hidden; }
+        canvas { display: block; }
+
+        /* Joystick container */
+        .joystick-container {
+            position: fixed;
+            bottom: 20px;
+            left: 20px;
+            width: 100px;
+            height: 100px;
+            display: none; /* Hidden by default */
+        }
+
+        .joystick {
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            border-radius: 50%;
+            position: relative;
+        }
+
+        .joystick-inner {
+            width: 50%;
+            height: 50%;
+            background: rgba(255, 255, 255, 0.8);
+            border-radius: 50%;
+            position: absolute;
+            top: 25%;
+            left: 25%;
+            transform: translate(-50%, -50%);
+        }
+
+        /* Toggle button */
+        #toggleControlsBtn {
+            position: fixed;
+            bottom: 140px;
+            left: 20px;
+            padding: 10px 20px;
+            background: #333;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+
+        /* Control buttons */
+        .control-button {
+            position: fixed;
+            bottom: 20px;
+            background: rgba(0, 0, 0, 0.5);
+            color: white;
+            border: none;
+            border-radius: 5px;
+            padding: 10px 20px;
+            cursor: pointer;
+            display: none; /* Hidden by default */
+        }
+
+        #buttonM {
+            left: 140px;
+        }
+
+        #buttonN {
+            left: 240px;
+        }
+
+        #buttonSpace {
+            left: 340px;
+        }
+    </style>
+</head>
+<body>
+    <!-- Joystick container -->
+    <div id="joystickContainer" class="joystick-container">
+        <div id="joystick" class="joystick">
+            <div id="joystickInner" class="joystick-inner"></div>
+        </div>
+    </div>
+
+    <!-- Control buttons -->
+    <button id="buttonM" class="control-button">M</button>
+    <button id="buttonN" class="control-button">N</button>
+    <button id="buttonSpace" class="control-button">Space</button>
+
+    <!-- Toggle button -->
+    <button id="toggleControlsBtn">Toggle Controls</button>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script>
+        // Initialize scene, camera, and renderer
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        document.body.appendChild(renderer.domElement);
+
+        // Player cube
+        const playerGeometry = new THREE.BoxGeometry();
+        const playerMaterial = new THREE.MeshBasicMaterial({ color: 0x00ff00 });
+        const playerCube = new THREE.Mesh(playerGeometry, playerMaterial);
+        scene.add(playerCube);
+
+        camera.position.set(0, 5, 10);
+        camera.lookAt(playerCube.position);
+
+        // Array to store placed cubes
+        let cubes = [];
+
+        // Movement controls
+        let keys = {
+            w: false,
+            a: false,
+            s: false,
+            d: false,
+            space: false,
+        };
+
+        document.addEventListener('keydown', (event) => {
+            if (event.key === 'w') keys.w = true;
+            if (event.key === 'a') keys.a = true;
+            if (event.key === 's') keys.s = true;
+            if (event.key === 'd') keys.d = true;
+            if (event.key === ' ') keys.space = true;
+            if (event.key === 'm') placeCube();
+            if (event.key === 'n') deleteCube();
+            changeColor(event.key);
+        });
+
+        document.addEventListener('keyup', (event) => {
+            if (event.key === 'w') keys.w = false;
+            if (event.key === 'a') keys.a = false;
+            if (event.key === 's') keys.s = false;
+            if (event.key === 'd') keys.d = false;
+            if (event.key === ' ') keys.space = false;
+        });
+
+        // Movement variables
+        let velocity = new THREE.Vector3();
+        let onGround = true;
+
+        // Mouse controls for camera rotation
+        let isDragging = false;
+        let previousMousePosition = {
+            x: 0,
+            y: 0
+        };
+
+        document.addEventListener('mousedown', (e) => {
+            isDragging = true;
+        });
+
+        document.addEventListener('mouseup', (e) => {
+            isDragging = false;
+        });
+
+        document.addEventListener('mousemove', (e) => {
+            if (isDragging) {
+                let deltaMove = {
+                    x: e.offsetX - previousMousePosition.x,
+                    y: e.offsetY - previousMousePosition.y
+                };
+
+                let rotationSpeed = 0.005;
+
+                camera.position.x -= deltaMove.x * rotationSpeed;
+                camera.position.y += deltaMove.y * rotationSpeed;
+
+                camera.lookAt(playerCube.position);
+            }
+
+            previousMousePosition = {
+                x: e.offsetX,
+                y: e.offsetY
+            };
+        });
+
+        // Place a new cube
+        function placeCube() {
+            const cubeGeometry = new THREE.BoxGeometry();
+            const cubeMaterial = new THREE.MeshBasicMaterial({ color: 0x888888 });
+            const newCube = new THREE.Mesh(cubeGeometry, cubeMaterial);
+
+            newCube.position.set(
+                Math.round(playerCube.position.x),
+                Math.round(playerCube.position.y) - 1,
+                Math.round(playerCube.position.z)
+            );
+
+            scene.add(newCube);
+            cubes.push(newCube);
+        }
+
+        // Delete a cube you're in contact with
+        function deleteCube() {
+            for (let i = 0; i < cubes.length; i++) {
+                if (playerCube.position.distanceTo(cubes[i].position) < 1.1) {
+                    scene.remove(cubes[i]);
+                    cubes.splice(i, 1);
+                    break;
+                }
+            }
+        }
+
+        // Change color of cube you're in contact with
+        function changeColor(key) {
+            const colorMap = {
+                '1': 0xff0000, // Red
+                '2': 0xffa500, // Orange
+                '3': 0xffff00, // Yellow
+                '4': 0x00ff00, // Green
+                '5': 0x0000ff, // Blue
+                '6': 0x4b0082, // Indigo
+                '7': 0xee82ee  // Violet
+            };
+
+            if (colorMap[key]) {
+                for (let i = 0; i < cubes.length; i++) {
+                    if (playerCube.position.distanceTo(cubes[i].position) < 1.1) {
+                        cubes[i].material.color.set(colorMap[key]);
+                        break;
+                    }
+                }
+            }
+        }
+
+        // Game loop
+        function animate() {
+            requestAnimationFrame(animate);
+
+            // Movement logic
+            if (keys.w) playerCube.position.z -= 0.1;
+            if (keys.a) playerCube.position.x -= 0.1;
+            if (keys.s) playerCube.position.z += 0.1;
+            if (keys.d) playerCube.position.x += 0.1;
+
+            if (keys.space && onGround) {
+                velocity.y = 0.2;
+                onGround = false;
+            }
+
+            // Apply gravity
+            if (!onGround) {
+                velocity.y -= 0.01;
+                playerCube.position.y += velocity.y;
+                if (playerCube.position.y <= 0.5) {
+                    playerCube.position.y = 0.5;
+                    onGround = true;
+                    velocity.y = 0;
+                }
+            }
+
+            renderer.render(scene, camera);
+        }
+
+        animate();
+
+        // Joystick functionality
+        let joystick = document.getElementById('joystick');
+        let joystickInner = document.getElementById('joystickInner');
+        let joystickContainer = document.getElementById('joystickContainer');
+        let joystickVisible = false;
+
+        // Toggle button functionality
+        document.getElementById('toggleControlsBtn').addEventListener('click', () => {
+            joystickVisible = !joystickVisible;
+            joystickContainer.style.display = joystickVisible ? 'block' : 'none';
+            document.getElementById('buttonM').style.display = joystickVisible ? 'block' : 'none';
+            document.getElementById('buttonN').style.display = joystickVisible ? 'block' : 'none';
+            document.getElementById('buttonSpace').style.display = joystickVisible ? 'block' : 'none';
+        });
+
+        // Joystick touch handling
+        joystick.addEventListener('touchstart', (e) => {
+            let touch = e.touches[0];
+            let joystickRect = joystick.getBoundingClientRect();
+            let joystickCenterX = joystickRect.left + joystickRect.width / 2;
+            let joystickCenterY = joystickRect.top + joystickRect.height / 2;
+
+            let touchX = touch.clientX - joystickCenterX;
+            let touchY = touch.clientY - joystickCenterY;
+
+            if (Math.abs(touchX) > Math.abs(touchY)) {
+                keys.a = touchX < 0;
+                keys.d = touchX > 0;
+            } else {
+                keys.w = touchY < 0;
+                keys.s = touchY > 0;
+            }
+
+            joystickInner.style.transform = `translate(${touchX}px, ${touchY}px)`;
+        });
+
+        joystick.addEventListener('touchmove', (e) => {
+            let touch = e.touches[0];
+            let joystickRect = joystick.getBoundingClientRect();
+            let joystickCenterX = joystickRect.left + joystickRect.width / 2;
+            let joystickCenterY = joystickRect.top + joystickRect.height / 2;
+
+            let touchX = touch.clientX - joystickCenterX;
+            let touchY = touch.clientY - joystickCenterY;
+
+            joystickInner.style.transform = `translate(${touchX}px, ${touchY}px)`;
+
+            if (Math.abs(touchX) > Math.abs(touchY)) {
+                keys.a = touchX < 0;
+                keys.d = touchX > 0;
+            } else {
+                keys.w = touchY < 0;
+                keys.s = touchY > 0;
+            }
+        });
+
+        joystick.addEventListener('touchend', () => {
+            joystickInner.style.transform = `translate(-50%, -50%)`;
+            keys.w = keys.a = keys.s = keys.d = false;
+        });
+
+        // Button click handling
+        document.getElementById('buttonM').addEventListener('click', () => {
+            placeCube();
+        });
+
+        document.getElementById('buttonN').addEventListener('click', () => {
+            deleteCube();
+        });
+
+        document.getElementById('buttonSpace').addEventListener('click', () => {
+            if (onGround) {
+                velocity.y = 0.2;
+                onGround = false;
+            }
+        });
+    </script>
+</body>
+</html>
